@@ -16,10 +16,14 @@
 
 package com.example.background
 
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Observer
+import androidx.work.WorkInfo
 import com.example.background.databinding.ActivityBlurBinding
 
 class BlurActivity : AppCompatActivity() {
@@ -36,9 +40,52 @@ class BlurActivity : AppCompatActivity() {
         binding = ActivityBlurBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        viewModel.outputWorkInfos.observe(this,workInfosObserver())
+        viewModel.progressWorkInfoItems.observe(this, progressObserver())
         binding.goButton.setOnClickListener { viewModel.applyBlur(blurLevel) }
-    }
 
+        binding.seeFileButton.setOnClickListener {
+            viewModel.outputUri?.let {
+                val action = Intent(Intent.ACTION_VIEW,it)
+                action.resolveActivity(packageManager)?.run {
+                    startActivity(action)
+                }
+            }
+        }
+
+        binding.cancelButton.setOnClickListener {
+            viewModel.cancelWork()
+        }
+    }
+    private fun workInfosObserver(): Observer<List<WorkInfo>> {
+        return Observer { listOfWorkInfo ->
+
+            // Note that these next few lines grab a single WorkInfo if it exists
+            // This code could be in a Transformation in the ViewModel; they are included here
+            // so that the entire process of displaying a WorkInfo is in one location.
+
+            // If there are no matching work info, do nothing
+            if (listOfWorkInfo.isNullOrEmpty()) {
+                return@Observer
+            }
+
+            // We only care about the one output status.
+            // Every continuation has only one worker tagged TAG_OUTPUT
+            val workInfo = listOfWorkInfo[0]
+
+            if (workInfo.state.isFinished) {
+                showWorkFinished()
+
+                val outputDataImageUri = workInfo.outputData.getString(KEY_IMAGE_URI)
+                if (!outputDataImageUri.isNullOrEmpty()){
+                    viewModel.setOutputUri(outputDataImageUri)
+                    binding.seeFileButton.visibility = View.VISIBLE
+                }
+            } else {
+                showWorkInProgress()
+            }
+        }
+    }
     /**
      * Shows and hides views for when the Activity is processing an image
      */
@@ -48,6 +95,7 @@ class BlurActivity : AppCompatActivity() {
             cancelButton.visibility = View.VISIBLE
             goButton.visibility = View.GONE
             seeFileButton.visibility = View.GONE
+
         }
     }
 
@@ -59,6 +107,7 @@ class BlurActivity : AppCompatActivity() {
             progressBar.visibility = View.GONE
             cancelButton.visibility = View.GONE
             goButton.visibility = View.VISIBLE
+            progressBar.progress = 0
         }
     }
 
@@ -70,4 +119,25 @@ class BlurActivity : AppCompatActivity() {
                 R.id.radio_blur_lv_3 -> 3
                 else -> 1
             }
+
+    private fun progressObserver():Observer<List<WorkInfo>>{
+
+        return Observer{
+                listOfWorkInfo->
+
+            if (listOfWorkInfo.isNullOrEmpty()) {
+                return@Observer
+            }
+
+            listOfWorkInfo.forEach { workInfo ->
+                if (WorkInfo.State.RUNNING == workInfo.state) {
+                    val progress = workInfo.progress.getInt(PROGRESS, 0)
+                    binding.progressBar.progress = progress
+                }
+            }
+
+
+        }
+
+    }
 }

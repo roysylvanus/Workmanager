@@ -1,7 +1,6 @@
 package com.example.background.workers
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.text.TextUtils
@@ -11,7 +10,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.example.background.KEY_IMAGE_URI
-import com.example.background.R
+import com.example.background.PROGRESS
 
 class BlurWorker(context: Context, params:WorkerParameters) : Worker(context,params) {
     private val TAG = "BlurWorker"
@@ -23,6 +22,11 @@ class BlurWorker(context: Context, params:WorkerParameters) : Worker(context,par
         val resourceUri = inputData.getString(KEY_IMAGE_URI)
 
        makeStatusNotification("Blurring the image",appContext)
+
+        (0..100 step 10).forEach {
+            setProgressAsync(workDataOf(PROGRESS to it))
+            sleep()
+        }
          return try {
 
              if (TextUtils.isEmpty(resourceUri)) {
